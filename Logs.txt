@@ -1,0 +1,2 @@
+06/07:
+Optimal Configuration: {'n': 8, 'lr': 0.0005623413251903491, 'l2_reg': 0.0001, 'batch_size': 16, 'epochs': 1, 'weighting_boolean': True, 'kl_weight': 0.004999999999999999, 'val_loss': 12.592336654663086, 'min_val_epoch': 0}  
