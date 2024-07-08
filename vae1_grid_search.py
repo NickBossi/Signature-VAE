@@ -27,15 +27,6 @@ import ray.cloudpickle as pickle
 from sklearn.model_selection import KFold
 
 
-# Setting the device to cuda
-device = (
-    "cuda"
-    if torch.cuda.is_available()
-    else "mps"
-    if torch.backends.mps.is_available()
-    else "cpu"
-)
-
 # Creating custom data set
 class CustomDataset(Dataset):
     def __init__(self, input_tensor, transform = None):
@@ -57,13 +48,13 @@ class CustomDataset(Dataset):
         return x
 
 # Data prep
-data = torch.load('train_sig_data.pt').float()
-input_size = data.shape[2]
-num_samples = data.shape[0]
-train_size = int(0.8*num_samples)
+data = torch.load(os.path.join('..','Stocks', 'data', 'train_sig_data.pt')).float()                 # Loads data from Stocks folder 
+input_size = data.shape[2]              # gets dimension of inputs
+num_samples = data.shape[0]             # gets number of samples 
+train_size = int(0.8*num_samples)       
 val_size = num_samples-train_size
 dataset = CustomDataset(data)
-train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
+train_dataset, val_dataset = random_split(dataset, [train_size, val_size])      # splitting into training and validation sets
 
 class Encoder(nn.Module):
 
@@ -118,15 +109,23 @@ class VAE(nn.Module):
         z = self.encoder(x)
         return self.decoder(z)
 
+# Setting global variables
 mse_loss = nn.MSELoss()
-
-
 global optimal_vae_loss
 global optimal_vae_model
 global optimal_config
+global device
 optimal_vae_model = VAE(1,1,1,1)
 optimal_config = {}
 optimal_vae_loss = 1000000
+# Setting the device to cuda
+device = (
+    "cuda"
+    if torch.cuda.is_available()
+    else "mps"
+    if torch.backends.mps.is_available()
+    else "cpu"
+)
 
 def train(config):
 
@@ -149,7 +148,7 @@ def train(config):
         train_loss = 0.0
         train_steps = 0
 
-        vae.train()         #sets the model to training mode
+        vae.train()         # Sets the model to training mode
 
         for i, data in enumerate(train_load):
             #print(i)
@@ -160,18 +159,17 @@ def train(config):
             optimizer.zero_grad()
             outputs = vae(inputs).unsqueeze(1).unsqueeze(1)
 
-            #loss = ((inputs-outputs)**2).sum() + vae.encoder.kl
             MSE_loss = mse_loss(inputs, outputs)
             kl_loss = vae.encoder.kl
 
             if config["weighting_boolean"]:
-                loss = (1-config["kl_weight"])*MSE_loss #+ config["kl_weight"]*kl_loss
+                loss = (1-config["kl_weight"])*MSE_loss + config["kl_weight"]*kl_loss
             else:
-                loss = MSE_loss + kl_loss
+                loss = MSE_loss #+ kl_loss
 
             # Backprop
             loss.backward()
-            #torch.nn.utils.clip_grad_norm_(vae.parameters(), max_norm=1.0)  # Gradient clipping
+            #torch.nn.utils.clip_grad_norm_(vae.parameters(), max_norm=1.0)      # Gradient clipping to help prevent gradient blow-up
             optimizer.step()
 
             # Update loss
@@ -197,9 +195,10 @@ def train(config):
                 kl_loss = vae.encoder.kl
 
                 if config["weighting_boolean"]:
+                    print("Got here")
                     loss = (1-config["kl_weight"])*MSE_loss + config["kl_weight"]*kl_loss
                 else:
-                    loss = MSE_loss + kl_loss
+                    loss = MSE_loss #+ kl_loss
                 val_mse_loss += MSE_loss
                 val_kl_loss += kl_loss
                 val_loss += loss.cpu().numpy()
@@ -217,6 +216,7 @@ def train(config):
 
     return min_val_loss, min_val_epoch
 
+'''
 # Creating table over which we will grid search for hyperparameters
 n_list = [8, 12, 14]
 lr_list = np.logspace(np.log10(0.1), np.log10(0.0001), num=5)
@@ -225,14 +225,16 @@ batch_size_list = [1,4,16]
 epoch_list = [1]
 weighting_boolean_list = [False,True]
 kl_weight_list = np.logspace(np.log10(0.5), np.log10(0.005), num=5)
+'''
 
-# n_list = [8]
-# lr_list = np.logspace(np.log10(0.1), np.log10(0.0001), num=2)
-# l2_list = np.logspace(np.log10(0.1), np.log10(0.0001), num=2)
-# batch_size_list = [5]
-# epoch_list = [1]
-# weighting_boolean_list = [True]
-# kl_weight_list = np.logspace(np.log10(0.5), np.log10(0.005), num=2)
+
+n_list = [8]
+lr_list = [0.005]
+l2_list = [0]
+batch_size_list = [16]
+epoch_list = [10]
+weighting_boolean_list = [True]
+kl_weight_list = [1]
 
 # dealing with case when we don't have kl vs mse weighting 
 param_combinations_no_weight = list(itertools.product(
@@ -259,8 +261,29 @@ running_total = 0
 
 configs = []            # empty list in which configurations and their validation losses will be stored
 
-if __name__ == "__main__":
+def plot_latent(model, config):
+    if 2**(config["n"]-7)==2:
+
+        global device
+        latent_embeddings = []
+        data = DataLoader(train_dataset, batch_size=config["batch_size"])
+
+        # Gets encoding of each datapoint 
+        for i, input in enumerate(data):
+            latent_embedding = model.encoder(input.to(device))
+            latent_embeddings.append(latent_embedding.detach().cpu().numpy())
+
+        # Plots latent space
+        x = [embedding[0] for embedding in latent_embeddings]
+        y = [embedding[1] for embedding in latent_embeddings]
+        plt.scatter(x, y, color = "blue", marker = "o", s = 100)
+        plt.title("Latent Space")
+        plt.show()
     
+
+
+
+if __name__ == "__main__":
 
     for (n, lr, l2_reg, batch_size, epochs, kl_weight) in param_combinations_weight:
         config = {
@@ -297,6 +320,8 @@ if __name__ == "__main__":
         running_total+=1
         print("{} percent done.".format(100*(running_total/total_number_configs)))
 
+        plot_latent(optimal_vae_model, config)
+
     torch.save(optimal_vae_model, 'optimal_vae.pth')
 
     with open('configs.pkl', 'wb') as f:
@@ -306,35 +331,13 @@ if __name__ == "__main__":
         pickle.dump(optimal_config, f)
 
 
+    
+
+
     # opt_vae = torch.load('optimal_vae.pth')
     # sample = torch.randn(2**(optimal_config["n"]-7))
     # generated_signature = opt_vae.decoder(sample.to(device))
     # torch.save(generated_signature, 'opt_model_generated_signature.pt')
-# if __name__ == "__main__":
-    
-#     # You can change the number of GPUs per trial here:
-#     main()
-# config = {
-#     "n": 12,
-#     "lr": 3e-4,
-#     "l2_reg": 0.0,
-#     "batch_size": 1,
-#     "epochs": 10,
-#     "weighting_boolean": True,
-#     "kl_weight": 0.2
-# }
-# config = {
-#     "lay1": 1000,
-#     "lay2": 500,
-#     "lay3":125,
-#     "lay4":20,
-#     "lr": 3e-4,
-#     "l2_reg": 0.01,
-#     "batch_size": 1,
-#     "epochs": 10,
-#     "weighting_boolean": False,
-#     "kl_weight": 0.2
-# }
 
 # Batch size of one seems best alongside a lower learning rate
 # lay1: 1000, lay2: 500 gave worse training but better validation
