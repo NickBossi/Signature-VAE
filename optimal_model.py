@@ -27,10 +27,10 @@ device = (
     else "cpu"
 )
 
-with open('configs.pkl', 'rb') as f:
+with open('data/configs.pkl', 'rb') as f:
     configs = pickle.load(f)
 
-with open('optimal_config.pkl', 'rb') as f:
+with open('data/optimal_config.pkl', 'rb') as f:
     optimal_config = pickle.load(f)
 
 print(f"Optimal Configuration: {optimal_config}")
@@ -47,8 +47,8 @@ else:
 sample = torch.randn(2**(optimal_config["n"]-7))
 print(sample)
 
-opt_vae = torch.load('optimal_vae.pth')
+opt_vae = torch.load('data/optimal_vae.pth')
 opt_vae.eval()
 
 generated_signature = opt_vae.decoder(sample.to(device))
-torch.save(generated_signature, 'opt_model_generated_signature.pt')
+torch.save(generated_signature, 'data/opt_model_generated_signature.pt')

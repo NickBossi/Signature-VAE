@@ -1,5 +1,6 @@
 from functools import partial
 import os
+import sys
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -15,6 +16,8 @@ from torch.utils.data import Dataset, DataLoader, random_split
 import numpy as np
 from vae1_grid_search import Encoder, Decoder, VAE
 
+from vae1_grid_search import get_mean_std
+
 num_paths = 100             # number of paths to be generated
 
 signatures = []             #list to store generated signatures
@@ -29,12 +32,15 @@ device = (
 )
 
 # Loading the optimal hyperparameters found 
-with open('optimal_config.pkl', 'rb') as f:
+with open('data/optimal_config.pkl', 'rb') as f:
     optimal_config = pickle.load(f)
 
 # Loading the optimal model found
-final_vae = torch.load('optimal_vae.pth')
+final_vae = torch.load('data/optimal_vae.pth')
 final_vae.eval()
+
+# Getting the mean and std of the input data
+mean, std = get_mean_std()
 
 # Each signatures is 10 days, so need three signatures per full 30 day sample path
 for i in range(3*num_paths):
@@ -43,8 +49,11 @@ for i in range(3*num_paths):
     sigma = np.diag(std_devs**2)
     sample = (torch.tensor((np.random.multivariate_normal(mu, sigma, 1)))).float().squeeze(0)
     #sample = torch.randn(2**(optimal_config["n"]-7))
-    generated_signature = final_vae.decoder(sample.to(device))
+    generated_signature = final_vae.decoder(sample.to(device)).cpu()
     signatures.append(generated_signature)
 
-torch.save(signatures, 'signatures.pt')
+#Undoing normalisiation
+signatures = torch.stack(signatures)*std+mean
+
+torch.save(signatures, 'data/signatures.pt')
 

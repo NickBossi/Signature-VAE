@@ -47,14 +47,29 @@ class CustomDataset(Dataset):
 
         return x
 
+def get_mean_std():
+    train_sig_data = torch.load('data/train_sig_data.pt')
+    column_mean = torch.mean(train_sig_data, dim = 0)
+    column_std = torch.std(train_sig_data, dim = 0)
+    return column_mean, column_std
+
 # Data prep
-data = torch.load(os.path.join('..','Stocks', 'data', 'train_sig_data.pt')).float()                 # Loads data from Stocks folder 
+data = torch.load(os.path.join('..','Stocks', 'data', 'train_sig_data.pt')).float()                 # Loads data from Stocks folder
+column_mean, column_std = get_mean_std()                                                            # Gets mean and std of data
+print(column_mean.shape)
+print(column_std.shape)
+train_signature_data = ((data- column_mean)/column_std).unsqueeze(1)                                # Normalises
 input_size = data.shape[2]              # gets dimension of inputs
 num_samples = data.shape[0]             # gets number of samples 
+print(input_size)
+print(num_samples)
 train_size = int(0.8*num_samples)       
 val_size = num_samples-train_size
 dataset = CustomDataset(data)
 train_dataset, val_dataset = random_split(dataset, [train_size, val_size])      # splitting into training and validation sets
+
+dataloader = DataLoader(dataset=dataset, batch_size=1)
+
 
 class Encoder(nn.Module):
 
@@ -165,7 +180,7 @@ def train(config):
             if config["weighting_boolean"]:
                 loss = (1-config["kl_weight"])*MSE_loss + config["kl_weight"]*kl_loss
             else:
-                loss = MSE_loss #+ kl_loss
+                loss = MSE_loss + 0.1*epoch*kl_loss
 
             # Backprop
             loss.backward()
@@ -198,7 +213,7 @@ def train(config):
                     print("Got here")
                     loss = (1-config["kl_weight"])*MSE_loss + config["kl_weight"]*kl_loss
                 else:
-                    loss = MSE_loss #+ kl_loss
+                    loss = MSE_loss + 0.2*epoch*kl_loss
                 val_mse_loss += MSE_loss
                 val_kl_loss += kl_loss
                 val_loss += loss.cpu().numpy()
@@ -232,9 +247,9 @@ n_list = [8]
 lr_list = [0.005]
 l2_list = [0]
 batch_size_list = [16]
-epoch_list = [10]
-weighting_boolean_list = [True]
-kl_weight_list = [1]
+epoch_list = [5]
+weighting_boolean_list = [False]
+kl_weight_list = []
 
 # dealing with case when we don't have kl vs mse weighting 
 param_combinations_no_weight = list(itertools.product(
@@ -266,23 +281,21 @@ def plot_latent(model, config):
 
         global device
         latent_embeddings = []
-        data = DataLoader(train_dataset, batch_size=config["batch_size"])
+        data = DataLoader(dataset, batch_size=1)
 
-        # Gets encoding of each datapoint 
+        # Gets encoding of each datapoint (both training and validation)
         for i, input in enumerate(data):
-            latent_embedding = model.encoder(input.to(device))
+            latent_embedding = model.encoder(input.to(device)).squeeze(0)
             latent_embeddings.append(latent_embedding.detach().cpu().numpy())
 
+        #print("Number samples = {}".format(len(latent_embeddings)))
         # Plots latent space
         x = [embedding[0] for embedding in latent_embeddings]
         y = [embedding[1] for embedding in latent_embeddings]
         plt.scatter(x, y, color = "blue", marker = "o", s = 100)
         plt.title("Latent Space")
         plt.show()
-    
-
-
-
+'''
 if __name__ == "__main__":
 
     for (n, lr, l2_reg, batch_size, epochs, kl_weight) in param_combinations_weight:
@@ -320,16 +333,17 @@ if __name__ == "__main__":
         running_total+=1
         print("{} percent done.".format(100*(running_total/total_number_configs)))
 
-        plot_latent(optimal_vae_model, config)
 
-    torch.save(optimal_vae_model, 'optimal_vae.pth')
+    plot_latent(optimal_vae_model, optimal_config)
 
-    with open('configs.pkl', 'wb') as f:
+    torch.save(optimal_vae_model, 'data/optimal_vae.pth')
+
+    with open('data/configs.pkl', 'wb') as f:
         pickle.dump(configs, f)
 
-    with open('optimal_config.pkl', 'wb') as f:
+    with open('data/optimal_config.pkl', 'wb') as f:
         pickle.dump(optimal_config, f)
-
+'''
 
     
 

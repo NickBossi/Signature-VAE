@@ -8,7 +8,7 @@ other_folder_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'
 sys.path.append(other_folder_path)
 from InvertSignatorySignatures import invert_signature
 
-signatures = torch.load('signatures.pt')            #loading generated signatures
+signatures = torch.load('data\signatures.pt')            #loading generated signatures
 
 path_segments = []
 paths = []
