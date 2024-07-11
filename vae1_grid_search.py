@@ -75,7 +75,7 @@ class Encoder(nn.Module):
 
     def __init__(self, lay1, lay2, lay3, lay4):
         super(Encoder, self).__init__()
-        self.linear1 = nn.Linear(input_size, lay1)              # First layer
+        self.linear1 = nn.Linear(input_size, lay1)                 # First layer
         self.linear2 = nn.Linear(lay1, lay2)
         self.linear3 = nn.Linear(lay2, lay3)
         self.linearmean = nn.Linear(lay3, lay4)                    # Mean latent layer
@@ -166,8 +166,6 @@ def train(config):
         vae.train()         # Sets the model to training mode
 
         for i, data in enumerate(train_load):
-            #print(i)
-            #print('Train: {}'.format(train_steps))
             # Forward pass
 
             inputs = data.to(device)
@@ -295,7 +293,7 @@ def plot_latent(model, config):
         plt.scatter(x, y, color = "blue", marker = "o", s = 100)
         plt.title("Latent Space")
         plt.show()
-'''
+
 if __name__ == "__main__":
 
     for (n, lr, l2_reg, batch_size, epochs, kl_weight) in param_combinations_weight:
@@ -343,7 +341,7 @@ if __name__ == "__main__":
 
     with open('data/optimal_config.pkl', 'wb') as f:
         pickle.dump(optimal_config, f)
-'''
+
 
     
 
